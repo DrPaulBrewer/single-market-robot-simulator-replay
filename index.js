@@ -1,0 +1,193 @@
+module.exports = {};
+
+const defaultExtractor = {
+  t: (event)=>(+event.t),
+  period: (event)=>(+event.period),
+  id: (event)=>(+(event.id || event.buyerAgentId)),
+  buyerAgentId: (event)=>(+event.buyerAgentId),
+  sellerAgentId: (event)=>(+event.sellerAgentId)
+};
+
+module.exports.defaultExtractor = defaultExtractor;
+
+function defaultInitPeriod(sim, extract=defaultExtractor){
+  return function(){
+    const firstEvent = sim.getReplayEvent();
+    if (!firstEvent)
+      throw new Error("replay defaultInitPeriod undefined event");
+    if (extract.period(firstEvent)>sim.period){
+      sim.period = extract.period(firstEvent);
+    }
+    const firstRow = sim.row;
+    let lastEvent = null;
+    do {
+      sim.row++;
+      lastEvent = sim.getReplayEvent();
+    } while (lastEvent && (extract.period(lastEvent)===sim.period));
+    sim.row--;
+    lastEvent = sim.getReplayEvent();
+    sim.row = firstRow;
+    const firstTime = extract.t(firstEvent);
+    const lastTime =  extract.t(lastEvent);
+    const duration = +sim.config.periodDuration;
+    const consistentWithEqualDuration = (
+      (duration>0) &&
+      (Math.floor(firstTime/duration)===sim.period) &&
+      (Math.floor(lastTime/duration)===sim.period)
+    );
+    let newPeriod;
+    if (consistentWithEqualDuration){
+      newPeriod = sim.period;
+    } else {
+      newPeriod = {
+        number: sim.period,
+        startTime: Math.floor(firstTime),
+        endTime: Math.ceil(lastTime),
+        equalDuration: false
+      };
+      // force endTime and duration 1 second if zero duration
+      if (newPeriod.startTime===newPeriod.endTime) newPeriod.endTime+=1;
+      newPeriod.duration = newPeriod.endTime-newPeriod.startTime;
+    }
+    sim.pool.agents.forEach((a)=>{a.initPeriod(newPeriod);});
+  };
+}
+
+module.exports.defaultInitPeriod = defaultInitPeriod;
+
+function defaultNext(sim, extract=defaultExtractor){
+  return function(){
+    // this = pool
+    if (this.nextCache) return this.nextCache;
+    const event = sim.getReplayEvent();
+    if (
+      (!event) ||
+      (extract.period(event)>sim.period)
+    ) return 0;
+    const nextId = extract.id(event);
+    const nextTime = extract.t(event);
+    const a = this.agentsById[nextId];
+    if (
+      (Number.isNaN(nextId)) ||
+      (Number.isNaN(nextTime)) ||
+      (a===undefined)
+      ){
+         throw new Error("replay terminated prematurely -- bad event: "+JSON.stringify(event));
+    }
+    a.wakeTime = nextTime;
+    this.nextCache = a;
+    return this.nextCache;
+  };
+}
+
+module.exports.defaultNext = defaultNext;
+
+const defaultReplayer = {
+  orderLog(sim){
+    return {
+      initPeriod: defaultInitPeriod(sim),
+      next: defaultNext(sim),
+      wake(){
+        // this = pool
+        const event = sim.getReplayEvent();
+        const { t, id, buyLimitPrice, sellLimitPrice } = event;
+        if (+id > 0) {
+          const agent = sim.pool.agentsById[+id];
+          agent.wakeTime = +t;
+          if (+buyLimitPrice > 0) {
+            agent.marketXBid(+buyLimitPrice);
+          } else if (+sellLimitPrice > 0) {
+            agent.marketXAsk(+sellLimitPrice);
+          }
+        }
+        sim.row++;
+        delete this.nextCache;
+      }
+    };
+  },
+  tradeLog(sim){
+    return {
+      initPeriod: defaultInitPeriod(sim),
+      next: defaultNext(sim),
+      wake(){
+        // this = pool
+        const event = sim.getReplayEvent();
+        const { t, price, buyerAgentId, sellerAgentId } = event;
+        const buyer =  this.agentsById[+buyerAgentId];
+        const seller = this.agentsById[+sellerAgentId];
+        buyer.wakeTime = +t;
+        seller.wakeTime = +t;
+        buyer.marketXBid(+price);
+        seller.marketXAsk(+price);
+        sim.row++;
+        delete this.nextCache;
+      }
+    };
+  }
+};
+
+module.exports.defaultReplayer = defaultReplayer;
+
+function modifySimulator(sim,options) {
+  // matches the first key ending in Log like orderLog, tradeLog, somethingLog in options
+  const logKey = Object.keys(options).find((k) => (k.endsWith('Log')));
+  if (logKey === undefined) {
+    throw new Error("replay input log not found");
+  }
+  function throwRequiredResubmitMissing(){
+    throw new Error("replay requires resubmit function for " + logKey);
+  }
+  const replayer = (
+    options.replayer ||
+    defaultReplayer[logKey] ||
+    throwRequiredResubmitMissing()
+  );
+  const myLog = options[logKey];
+  const myLogHeader = myLog.data[0];
+  const periodCol = myLogHeader.indexOf('period');
+  if (periodCol < 0) {
+    throw new Error("period column not found in replay log data");
+  }
+  const firstPeriod = myLog.data[1][periodCol];
+  const lastPeriod = myLog.data[myLog.data.length - 1][periodCol];
+  sim.period = firstPeriod - 1;
+  sim.row = 1;
+  const myLogData = myLog.data;
+  sim.getReplayEvent = function(){
+    const eventLogValues = myLogData[sim.row];
+    // read a row in an array of array CSV data representation into an object
+    if (!Array.isArray(eventLogValues)) return undefined;
+    if (eventLogValues.every((v)=>(!v))) return undefined;
+    const event = Object.fromEntries(
+      myLogHeader.map((k, j) => ([k, eventLogValues[j] || '']))
+    );
+    return event;
+  };
+  const pool = sim.pool;
+  pool.agents[0].on('post-period', function(){
+    // fast forward sim.row to the end of the current period
+    const originalRow = sim.row;
+    if (sim.period===lastPeriod) return;
+    while((+myLog.data[sim.row][periodCol])===sim.period)
+      sim.row+=1;
+    if (sim.row>originalRow)
+      sim.row -= 1;
+    const skipped = sim.row - originalRow;
+    if (skipped>0)
+      console.log(`warning: replay skipped ${skipped} rows at end of period ${sim.period}`);
+  });
+  pool.agents.forEach((a)=>{
+    a.marketXBid = function(price){ this.bid(sim.xMarket,price);};
+    a.marketXAsk = function(price){ this.ask(sim.xMarket,price);};
+  });
+  const simReplayer = replayer(sim);
+  ['next','wake','initPeriod'].forEach((k)=>{
+    if (typeof(simReplayer[k])==='function'){
+      pool[k] = simReplayer[k];
+    } else {
+      throw new Error(`replayer requires replayer pool.${k} function`);
+    }
+  });
+}
+
+module.exports.modifySimulator = modifySimulator;

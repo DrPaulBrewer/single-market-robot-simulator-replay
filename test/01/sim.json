@@ -1,0 +1,62 @@
+{
+  "buyerValues": [
+    8000,
+    7500,
+    7000,
+    6500,
+    6000,
+    5500,
+    5000,
+    4500,
+    4000,
+    3500,
+    3000,
+    2500,
+    2000,
+    1500,
+    1000,
+    500
+  ],
+  "sellerCosts": [
+    1000,
+    2000,
+    3000,
+    4000,
+    5000,
+    6000,
+    7000,
+    8000,
+    9000,
+    10000
+  ],
+  "numberOfBuyers": 10,
+  "numberOfSellers": 10,
+  "buyerRate": [
+    0.1
+  ],
+  "sellerRate": [
+    0.1
+  ],
+  "buyerAgentType": [
+    "ZIAgent"
+  ],
+  "sellerAgentType": [
+    "ZIAgent"
+  ],
+  "keepPreviousOrders": false,
+  "ignoreBudgetConstraint": false,
+  "xMarket": {
+    "buySellBookLimit": 0,
+    "resetAfterEachTrade": false
+  },
+  "caseid": 0,
+  "periods": 100,
+  "periodDuration": 100,
+  "L": 1,
+  "H": 12000,
+  "integer": true,
+  "silent": true,
+  "version": 2,
+  "withoutOrderLogs": false,
+  "logToFileSystem": true
+}

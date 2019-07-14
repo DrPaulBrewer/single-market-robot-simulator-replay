@@ -1,0 +1,40 @@
+{
+  "name": "single-market-robot-simulator-replay",
+  "version": "0.1.0",
+  "description": "modifies simulator to replay orders or trades",
+  "main": "index.js",
+  "bin": "smrs-replay.js",
+  "scripts": {
+    "lint": "eslint index.js",
+    "lint-test": "eslint test/index.js",
+    "test": "nyc --reporter=text mocha --slow 50 --timeout 300000 ",
+    "coverage": "nyc --reporter=text-lcov mocha --timeout 300000 | coveralls "
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drpaulbrewer/single-market-robot-simulator-replay.git"
+  },
+  "keywords": [
+    "economics",
+    "markets",
+    "robot-trading",
+    "market-simulation",
+    "double-auction"
+  ],
+  "author": "drpaulbrewer@eaftc.com",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/drpaulbrewer/single-market-robot-simulator-replay/issues"
+  },
+  "homepage": "https://github.com/drpaulbrewer/single-market-robot-simulator-replay#readme",
+  "devDependencies": {
+    "eslint": "^6.0.1",
+    "mocha": "^6.1.4",
+    "nyc": "^14.1.1",
+    "should": "^13.2.3",
+    "tmpgen": "^1.1.1"
+  },
+  "dependencies": {
+    "single-market-robot-simulator": "^5.6.7"
+  }
+}
