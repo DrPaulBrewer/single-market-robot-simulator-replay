@@ -1,6 +1,6 @@
 {
   "name": "single-market-robot-simulator-replay",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "modifies simulator to replay orders or trades",
   "main": "index.js",
   "bin": "smrs-replay.js",
