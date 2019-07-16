@@ -3,9 +3,7 @@ module.exports = {};
 const defaultExtractor = {
   t: (event)=>(+event.t),
   period: (event)=>(+event.period),
-  id: (event)=>(+(event.id || event.buyerAgentId)),
-  buyerAgentId: (event)=>(+event.buyerAgentId),
-  sellerAgentId: (event)=>(+event.sellerAgentId)
+  id: (event)=>(+(event.id || event.buyerAgentId))
 };
 
 module.exports.defaultExtractor = defaultExtractor;

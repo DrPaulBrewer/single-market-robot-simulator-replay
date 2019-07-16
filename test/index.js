@@ -9,83 +9,74 @@ const { Simulation } = require('single-market-robot-simulator');
 const topPath = process.cwd();
 const tmpdir = require('tmpgen')("test-replay/*");
 
-function readCSV(path){
+function readCSV(path) {
   return (
     fs
-    .readFileSync(path,'utf8')
+    .readFileSync(path, 'utf8')
     .split("\n")
-    .map((line)=>(line.split(",")))
+    .map((line) => (line.split(",")))
   );
 }
 
-describe('dummy test', function(){
-  it('should pass', function(){
-    return true;
-  });
-});
+const testsByLogType = {
+  tradeLog: ['00'],
+  orderLog: ['10']
+};
 
-describe('reconstruct from tradeLog', function(){
-  let sim,simConfig;
-  const pathToSimJSON=topPath+"/test/00/sim.json";
-  const pathToTradeCSVInput=topPath+"/test/00/trade.csv";
-  const workdir = tmpdir();
-  before(function(){
-    process.chdir(workdir);
-    simConfig = JSON.parse(fs.readFileSync(pathToSimJSON));
-    simConfig.logToFileSystem=true;
-    simConfig.withoutOrderLogs=false;
-    sim = new Simulation(simConfig);
+const matchingFiles = {
+  tradeLog: ["effalloc.csv", "ohlc.csv", "profit.csv", "trade.csv"],
+  orderLog: ["buyorder.csv", "sellorder.csv", "effalloc.csv", "ohlc.csv", "profit.csv", "trade.csv"]
+};
+
+function testFunction(logKey, subdir) {
+  return function () {
+    let sim, simConfig;
+    const pathToSimJSON = `${topPath}/test/${subdir}/sim.json`;
+    const pathToTradeCSVInput = `${topPath}/test/${subdir}/trade.csv`;
     const tradeLog = {};
-    tradeLog.data = readCSV(pathToTradeCSVInput);
-    smrsReplay.modifySimulator(sim,{
-      tradeLog
-    });
-    sim.run({sync:true});
-  });
-  it('final period should be 100', function(){
-    sim.period.should.deepEqual(100);
-  });
-  describe('replay data output files match original data files', function(){
-    const files = ["effalloc.csv","ohlc.csv","profit.csv","trade.csv"];
-    files.forEach((f)=>{
-      it(f, function(){
-        const replayData = readCSV("./"+f);
-        const originalData = readCSV(topPath+"/test/00/"+f);
-        replayData.should.deepEqual(originalData);
-      });
-    });
-  });
-});
-
-describe('reconstruct from presorted/combined orderLog', function(){
-  let sim,simConfig;
-  const pathToSimJSON=topPath+"/test/01/sim.json";
-  const pathToOrderCSVInput=topPath+"/test/01/allorders-sorted.csv";
-  const workdir = tmpdir();
-  before(function(){
-    process.chdir(workdir);
-    simConfig = JSON.parse(fs.readFileSync(pathToSimJSON));
-    simConfig.logToFileSystem=true;
-    simConfig.withoutOrderLogs=false;
-    sim = new Simulation(simConfig);
+    const pathToOrderCSVInput = `${topPath}/test/${subdir}/allorders-sorted.csv`;
     const orderLog = {};
-    orderLog.data = readCSV(pathToOrderCSVInput);
-    smrsReplay.modifySimulator(sim,{
-      orderLog
+    const workdir = tmpdir();
+    before(function () {
+      process.chdir(workdir);
+      simConfig = JSON.parse(fs.readFileSync(pathToSimJSON));
+      simConfig.logToFileSystem = true;
+      simConfig.withoutOrderLogs = false;
+      sim = new Simulation(simConfig);
+      switch (logKey) {
+      case 'tradeLog':
+        tradeLog.data = readCSV(pathToTradeCSVInput);
+        smrsReplay.modifySimulator(sim, {
+          tradeLog
+        });
+        break;
+      case 'orderLog':
+        orderLog.data = readCSV(pathToOrderCSVInput);
+        smrsReplay.modifySimulator(sim, {
+          orderLog
+        });
+        break;
+      default:
+        throw new Error("tests not defined for logKey = " + logKey);
+      }
+      sim.run({ sync: true });
     });
-    sim.run({sync:true});
-  });
-  it('final period should be 100', function(){
-    sim.period.should.deepEqual(100);
-  });
-  describe('replay data output files match original data files', function(){
-    const files = ["buyorder.csv","sellorder.csv","effalloc.csv","ohlc.csv","profit.csv","trade.csv"];
-    files.forEach((f)=>{
-      it(f, function(){
-        const replayData = readCSV("./"+f);
-        const originalData = readCSV(topPath+"/test/01/"+f);
-        replayData.should.deepEqual(originalData);
+    describe('replay data output files should match original data files', function () {
+      matchingFiles[logKey].forEach((f) => {
+        it(f, function () {
+          const replayData = readCSV(`./${f}`);
+          const originalData = readCSV(`${topPath}/test/${subdir}/${f}`);
+          replayData.should.deepEqual(originalData);
+        });
       });
+    });
+  };
+}
+
+Object.keys(testsByLogType).forEach((k) => {
+  describe("reconstruct from " + k, function () {
+    testsByLogType[k].forEach((subdir) => {
+      describe("/test/" + subdir, testFunction(k, subdir));
     });
   });
 });
