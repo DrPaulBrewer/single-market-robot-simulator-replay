@@ -19,7 +19,7 @@ function readCSV(path) {
 }
 
 const testsByLogType = {
-  tradeLog: ['00'],
+  tradeLog: ['00','01'],
   orderLog: ['10']
 };
 

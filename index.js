@@ -124,6 +124,27 @@ const defaultReplayer = {
   }
 };
 
+function colMinMax(data, colNumber){
+  let min = Infinity;
+  let max = -Infinity;
+  for(let i=0,l=data.length;i<l;i+=1){
+      try {
+        const row = data[i];
+        const vstr = row[colNumber];
+        if ((vstr!==undefined) && (vstr!=='')){
+          const v = +vstr;
+          if (!Number.isNaN(v)){
+            min = (v<min)? v: min;
+            max = (v>max)? v: max;
+          }
+        }
+      } catch(e){ console.log(e); }
+  }
+  return [min, max];
+}
+
+module.exports.colMinMax = colMinMax;
+
 module.exports.defaultReplayer = defaultReplayer;
 
 function modifySimulator(sim,options) {
@@ -146,9 +167,9 @@ function modifySimulator(sim,options) {
   if (periodCol < 0) {
     throw new Error("period column not found in replay log data");
   }
-  const firstPeriod = myLog.data[1][periodCol];
-  const lastPeriod = myLog.data[myLog.data.length - 1][periodCol];
+  const [firstPeriod, lastPeriod] = colMinMax(myLog.data,periodCol);
   sim.period = firstPeriod - 1;
+  sim.config.periods = lastPeriod;
   sim.row = 1;
   const myLogData = myLog.data;
   sim.getReplayEvent = function(){
