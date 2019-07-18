@@ -8,14 +8,12 @@ const { Simulation } = require('single-market-robot-simulator');
 
 const topPath = process.cwd();
 const tmpdir = require('tmpgen')("test-replay/*");
+const csvParse = require('csv-parse/lib/sync');
 
 function readCSV(path) {
-  return (
-    fs
-    .readFileSync(path, 'utf8')
-    .split("\n")
-    .map((line) => (line.split(",")))
-  );
+  return csvParse(fs.readFileSync(path),{
+    skip_empty_lines:true   // eslint-disable-line camelcase
+  });
 }
 
 const testsByLogType = {
