@@ -8,6 +8,7 @@
  /* eslint no-sync: "off" */
 
 const fs = require('fs');
+global.fs = fs;
 const program = require('commander');
 const replay = require('./index.js');
 const csvParse = require('csv-parse/lib/sync');

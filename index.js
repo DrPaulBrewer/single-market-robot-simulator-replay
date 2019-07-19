@@ -39,9 +39,10 @@ function defaultInitPeriod(sim, extract=defaultExtractor){
     } else {
       newPeriod = {
         number: sim.period,
-        startTime: Math.floor(firstTime),
+        startTime: Math.floor(firstTime), // ineffective because logging is based on equalDuration
         endTime: Math.ceil(lastTime),
-        equalDuration: false
+        equalDuration: false,
+        init:{inventory:{X:0, money:0}}
       };
       // force endTime and duration 1 second if zero duration
       if (newPeriod.startTime===newPeriod.endTime) newPeriod.endTime+=1;
@@ -124,6 +125,8 @@ const defaultReplayer = {
   }
 };
 
+module.exports.defaultReplayer = defaultReplayer;
+
 function colMinMax(data, colNumber){
   let min = Infinity;
   let max = -Infinity;
@@ -145,7 +148,6 @@ function colMinMax(data, colNumber){
 
 module.exports.colMinMax = colMinMax;
 
-module.exports.defaultReplayer = defaultReplayer;
 
 function modifySimulator(sim,options) {
   // matches the first key ending in Log like orderLog, tradeLog, somethingLog in options

@@ -17,14 +17,45 @@ function readCSV(path) {
 }
 
 const testsByLogType = {
-  tradeLog: ['00','01'],
-  orderLog: ['10']
+  tradeLog: ['00','01','02'],
+  orderLog: ['10','11']
 };
 
 const matchingFiles = {
   tradeLog: ["effalloc.csv", "ohlc.csv", "profit.csv", "trade.csv"],
   orderLog: ["buyorder.csv", "sellorder.csv", "effalloc.csv", "ohlc.csv", "profit.csv", "trade.csv"]
 };
+
+const noMatchDuration = 'input data does not match sim.duration';
+const noMatchDurationExceptions = {
+  'ohlc.csv': {
+    beginTime: noMatchDuration,
+    endTime: noMatchDuration
+  },
+  'trade.csv': {
+    tp: noMatchDuration
+  },
+  'buyorder.csv': {
+    tp: noMatchDuration
+  },
+  'sellorder.csv': {
+    tp: noMatchDuration
+  }
+};
+
+const exceptions = {
+  '02': noMatchDurationExceptions,
+  '11': noMatchDurationExceptions
+};
+
+function hasException(subdir,f,h){
+  return (
+    exceptions &&
+    exceptions[subdir] &&
+    exceptions[subdir][f] &&
+    exceptions[subdir][f][h]
+  );
+}
 
 function testFunction(logKey, subdir) {
   return function () {
@@ -61,10 +92,31 @@ function testFunction(logKey, subdir) {
     });
     describe('replay data output files should match original data files', function () {
       matchingFiles[logKey].forEach((f) => {
-        it(f, function () {
-          const replayData = readCSV(`./${f}`);
-          const originalData = readCSV(`${topPath}/test/${subdir}/${f}`);
-          replayData.should.deepEqual(originalData);
+        const originalData = readCSV(`${topPath}/test/${subdir}/${f}`);
+        let replayData;
+        describe(f, function(){
+          before(function(){
+            replayData = readCSV(`./${f}`);
+          });
+          it('original and replay should have the same header', function(){
+            replayData[0].should.deepEqual(originalData[0]);
+          });
+          originalData[0].forEach((h,j)=>{
+            const exception = hasException(subdir,f,h);
+            if (exception){
+              it(`${f} col ${h} won't match because ${exception}`, function(){
+                const replayColumn = replayData.map((row)=>(row && row[j]));
+                const originalColumn =  originalData.map((row)=>(row && row[j]));
+                replayColumn.should.not.deepEqual(originalColumn);
+              });
+            } else{
+              it(`${f} col ${h} matches`, function(){
+                const replayColumn = replayData.map((row)=>(row && row[j]));
+                const originalColumn =  originalData.map((row)=>(row && row[j]));
+                replayColumn.should.deepEqual(originalColumn);
+              });
+            }
+          });
         });
       });
     });
