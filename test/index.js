@@ -5,20 +5,35 @@ global.fs = fs;
 require('should');
 const smrsReplay = require('../index.js');
 const { Simulation } = require('single-market-robot-simulator');
+const { execFileSync } = require('child_process');
 
 const topPath = process.cwd();
 const tmpdir = require('tmpgen')("test-replay/*");
 const csvParse = require('csv-parse/lib/sync');
 
+let countBin = 1; // don't change -- yields 100% on smrs-replay tests
+function replayBin(options){
+  countBin++;
+  if (countBin%2) options.push('--verbose'); // choose verbose for half of bin tests, which should not affect results
+  return execFileSync(
+    topPath+"/smrs-replay.js",
+    options,
+    {
+      windowsHide: true, // hides child window on Windows
+      stdio: 'ignore'    // discards stdio and stderr
+    }
+  );
+}
+
 function readCSV(path) {
-  return csvParse(fs.readFileSync(path),{
-    skip_empty_lines:true   // eslint-disable-line camelcase
+  return csvParse(fs.readFileSync(path), {
+    skip_empty_lines: true // eslint-disable-line camelcase
   });
 }
 
 const testsByLogType = {
-  tradeLog: ['00','01','02'],
-  orderLog: ['10','11']
+  tradeLog: ['00', '01', '02'],
+  orderLog: ['10', '11']
 };
 
 const matchingFiles = {
@@ -48,7 +63,7 @@ const exceptions = {
   '11': noMatchDurationExceptions
 };
 
-function hasException(subdir,f,h){
+function hasException(subdir, f, h) {
   return (
     exceptions &&
     exceptions[subdir] &&
@@ -57,7 +72,8 @@ function hasException(subdir,f,h){
   );
 }
 
-function testFunction(logKey, subdir) {
+
+function testFunction(useBin, logKey, subdir) {
   return function () {
     let sim, simConfig;
     const pathToSimJSON = `${topPath}/test/${subdir}/sim.json`;
@@ -66,7 +82,27 @@ function testFunction(logKey, subdir) {
     const pathToOrderCSVInput = `${topPath}/test/${subdir}/allorders-sorted.csv`;
     const orderLog = {};
     const workdir = tmpdir();
-    before(function () {
+
+    function runUsingBin() {
+      process.chdir(workdir);
+      fs.copyFileSync(pathToSimJSON, "./sim.json");
+      let option = '';
+      switch (logKey) {
+      case 'tradeLog':
+        fs.copyFileSync(pathToTradeCSVInput, "./trade-replay.csv");
+        option = '--trade';
+        break;
+      case 'orderLog':
+        fs.copyFileSync(pathToOrderCSVInput, "./order-replay.csv");
+        option = '--order';
+        break;
+      default:
+        throw new Error("tests not defined for logKey = " + logKey);
+      }
+      replayBin([option]);
+    }
+
+    function runUsingLibrary() {
       process.chdir(workdir);
       simConfig = JSON.parse(fs.readFileSync(pathToSimJSON));
       simConfig.logToFileSystem = true;
@@ -89,30 +125,31 @@ function testFunction(logKey, subdir) {
         throw new Error("tests not defined for logKey = " + logKey);
       }
       sim.run({ sync: true });
-    });
+    }
+    before(useBin ? runUsingBin : runUsingLibrary);
     describe('replay data output files should match original data files', function () {
       matchingFiles[logKey].forEach((f) => {
         const originalData = readCSV(`${topPath}/test/${subdir}/${f}`);
         let replayData;
-        describe(f, function(){
-          before(function(){
+        describe(f, function () {
+          before(function () {
             replayData = readCSV(`./${f}`);
           });
-          it('original and replay should have the same header', function(){
+          it('original and replay should have the same header', function () {
             replayData[0].should.deepEqual(originalData[0]);
           });
-          originalData[0].forEach((h,j)=>{
-            const exception = hasException(subdir,f,h);
-            if (exception){
-              it(`${f} col ${h} won't match because ${exception}`, function(){
-                const replayColumn = replayData.map((row)=>(row && row[j]));
-                const originalColumn =  originalData.map((row)=>(row && row[j]));
+          originalData[0].forEach((h, j) => {
+            const exception = hasException(subdir, f, h);
+            if (exception) {
+              it(`${f} col ${h} won't match because ${exception}`, function () {
+                const replayColumn = replayData.map((row) => (row && row[j]));
+                const originalColumn = originalData.map((row) => (row && row[j]));
                 replayColumn.should.not.deepEqual(originalColumn);
               });
-            } else{
-              it(`${f} col ${h} matches`, function(){
-                const replayColumn = replayData.map((row)=>(row && row[j]));
-                const originalColumn =  originalData.map((row)=>(row && row[j]));
+            } else {
+              it(`${f} col ${h} matches`, function () {
+                const replayColumn = replayData.map((row) => (row && row[j]));
+                const originalColumn = originalData.map((row) => (row && row[j]));
                 replayColumn.should.deepEqual(originalColumn);
               });
             }
@@ -123,10 +160,25 @@ function testFunction(logKey, subdir) {
   };
 }
 
-Object.keys(testsByLogType).forEach((k) => {
-  describe("reconstruct from " + k, function () {
-    testsByLogType[k].forEach((subdir) => {
-      describe("/test/" + subdir, testFunction(k, subdir));
+// smrs-replay error testing
+
+describe('smrs-replay.js invalid input testing', function(){
+  it('no options should throw', function(){
+    (()=>(replayBin())).should.throw();
+  });
+  it('using both --trade and --order should throw', function(){
+    (()=>(replayBin(['--trade','--order']))).should.throw();
+  });
+});
+
+[true, false].forEach((bin) => {
+  describe((bin) ? "using bin smrs-replay.js" : "using library index.js", function () {
+    Object.keys(testsByLogType).forEach((k) => {
+      describe("reconstruct from " + k, function () {
+        testsByLogType[k].forEach((subdir) => {
+          describe("/test/" + subdir, testFunction(bin,k, subdir));
+        });
+      });
     });
   });
 });

@@ -49,7 +49,7 @@ function replayTask(options){
 }
 
 (program
-  .version('0.5.0')
+  .version('0.7.0')
   .option('-o, --order', 'use order-replay.csv as replication input')
   .option('-t, --trade', 'use trade-replay.csv as replication input')
   .option('-v, --verbose', 'print more status messages')
